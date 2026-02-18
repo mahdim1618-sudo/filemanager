@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سیستم مدیریت املاک حرفه‌ای</title>
+<meta name="theme-color" content="#0f172a">
+
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;500;700&display=swap" rel="stylesheet">
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:'Vazirmatn',sans-serif;
+  background:linear-gradient(135deg,#0f172a,#1e293b);
+  color:#fff;
+}
+.container{max-width:1300px;margin:auto;padding:20px}
+.card{
+  background:rgba(255,255,255,0.08);
+  backdrop-filter:blur(10px);
+  padding:20px;
+  border-radius:20px;
+  margin-bottom:20px;
+}
+input,select,button{
+  padding:10px;
+  border:none;
+  border-radius:10px;
+  margin:5px;
+  font-family:inherit;
+}
+input,select{width:180px}
+button{
+  cursor:pointer;
+  background:#22c55e;
+  font-weight:bold;
+}
+button:hover{transform:scale(1.05)}
+.table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px;
+}
+.table th,.table td{
+  padding:8px;
+  text-align:center;
+}
+.table tr{
+  background:rgba(255,255,255,0.05);
+}
+.table tr:hover{
+  background:rgba(255,255,255,0.15);
+}
+.delete{background:#ef4444}
+.edit{background:#3b82f6}
+.filter-box input,.filter-box select{background:#111827;color:#fff}
+.notification{
+  position:fixed;
+  top:20px;
+  left:50%;
+  transform:translateX(-50%);
+  background:#22c55e;
+  padding:10px 20px;
+  border-radius:10px;
+  display:none;
+  .edit-mode {
+  border:2px solid #3b82f6;
+  box-shadow:0 0 15px #3b82f6;
+}
+
+#cancelEdit {
+  background:#f59e0b;
+  display:none;
+}
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<h1>سیستم مدیریت فایل املاک</h1>
+
+<div class="card">
+<form id="form">
+
+<input type="text" id="title" placeholder="عنوان فایل" required>
+<input type="number" id="price" placeholder="قیمت">
+<input type="number" id="area" placeholder="متراژ">
+<input type="number" id="rooms" placeholder="تعداد اتاق">
+<select id="elevator">
+<option value="دارد">آسانسور دارد</option>
+<option value="ندارد">آسانسور ندارد</option>
+</select>
+<select id="parking">
+<option value="دارد">پارکینگ دارد</option>
+<option value="ندارد">پارکینگ ندارد</option>
+</select>
+<select id="storage">
+<option value="دارد">انباری دارد</option>
+<option value="ندارد">انباری ندارد</option>
+</select>
+<input type="text" id="address" placeholder="آدرس">
+<input type="text" id="advisor" placeholder="نام مشاور">
+
+<button type="submit">ذخیره</button>
+</form>
+</div>
+
+<div class="card filter-box">
+<h3>فیلتر سریع</h3>
+
+<input type="number" id="minPrice" placeholder="حداقل قیمت">
+<input type="number" id="maxPrice" placeholder="حداکثر قیمت">
+<input type="number" id="minArea" placeholder="حداقل متراژ">
+<input type="number" id="filterRooms" placeholder="تعداد اتاق">
+<select id="filterParking">
+<option value="">پارکینگ (همه)</option>
+<option value="دارد">فقط دارای پارکینگ</option>
+</select>
+<input type="text" id="search" placeholder="جستجوی متن سریع">
+
+<button onclick="applyFilter()">اعمال فیلتر</button>
+<button onclick="exportCSV()">خروجی اکسل</button>
+</div>
+
+<div class="card">
+<table class="table">
+<thead>
+<tr>
+<th>عنوان</th>
+<th>قیمت</th>
+<th>متراژ</th>
+<th>اتاق</th>
+<th>آسانسور</th>
+<th>پارکینگ</th>
+<th>انباری</th>
+<th>آدرس</th>
+<th>مشاور</th>
+<th>عملیات</th>
+</tr>
+</thead>
+<tbody id="tableBody"></tbody>
+</table>
+</div>
+
+</div>
+
+<div class="notification" id="notif">عملیات موفق بود</div>
+
+<script>
+
+let editIndex=null;
+
+function showNotif(){
+  const n=document.getElementById("notif");
+  n.style.display="block";
+  setTimeout(()=>n.style.display="none",2000);
+}
+
+function getData(){
+  return JSON.parse(localStorage.getItem("estates"))||[];
+}
+
+function saveData(data){
+  localStorage.setItem("estates",JSON.stringify(data));
+}
+
+function render(data){
+  const body=document.getElementById("tableBody");
+  body.innerHTML="";
+  data.forEach((item,index)=>{
+    body.innerHTML+=`
+    <tr>
+      <td>${item.title}</td>
+      <td>${item.price}</td>
+      <td>${item.area}</td>
+      <td>${item.rooms}</td>
+      <td>${item.elevator}</td>
+      <td>${item.parking}</td>
+      <td>${item.storage}</td>
+      <td>${item.address}</td>
+      <td>${item.advisor}</td>
+      <td>
+        <button class="edit" onclick="editItem(${index})">ویرایش</button>
+        <button class="delete" onclick="deleteItem(${index})">حذف</button>
+      </td>
+    </tr>
+    `;
+  });
+}
+
+document.getElementById("form").addEventListener("submit",function(e){
+  e.preventDefault();
+
+  const estate={
+    title:title.value,
+    price:price.value,
+    area:area.value,
+    rooms:rooms.value,
+    elevator:elevator.value,
+    parking:parking.value,
+    storage:storage.value,
+    address:address.value,
+    advisor:advisor.value
+  };
+
+  let data=getData();
+
+  if(editIndex!==null){
+    data[editIndex]=estate;
+    editIndex=null;
+  }else{
+    data.push(estate);
+  }
+
+  saveData(data);
+  render(data);
+  this.reset();
+  showNotif();
+});
+
+function deleteItem(i){
+  let data=getData();
+  data.splice(i,1);
+  saveData(data);
+  render(data);
+}
+
+function editItem(i){
+  let data=getData();
+  const item=data[i];
+  Object.keys(item).forEach(key=>{
+    document.getElementById(key).value=item[key];
+  });
+  editIndex=i;
+}
+
+function applyFilter(){
+  let data=getData();
+
+  const minP=minPrice.value;
+  const maxP=maxPrice.value;
+  const minA=minArea.value;
+  const r=filterRooms.value;
+  const p=filterParking.value;
+  const q=search.value.toLowerCase();
+
+  data=data.filter(item=>{
+    return (!minP||item.price>=minP)
+    && (!maxP||item.price<=maxP)
+    && (!minA||item.area>=minA)
+    && (!r||item.rooms==r)
+    && (!p||item.parking==p)
+    && (!q||item.title.toLowerCase().includes(q)
+        || item.address.toLowerCase().includes(q)
+        || item.advisor.toLowerCase().includes(q));
+  });
+
+  render(data);
+}
+
+function exportCSV(){
+  const data = getData();
+
+  // افزودن BOM برای اکسل تا UTF-8 فارسی درست نمایش داده شود
+  let csv = "\uFEFF"; 
+  csv += "عنوان,قیمت,متراژ,اتاق,آسانسور,پارکینگ,انباری,آدرس,مشاور\n";
+
+  data.forEach(i => {
+    // متن‌ها داخل کوتیشن قرار می‌گیرند تا ویرگول و فارسی مشکل ایجاد نکند
+    const row = [
+      i.title,
+      i.price,
+      i.area,
+      i.rooms,
+      i.elevator,
+      i.parking,
+      i.storage,
+      i.address,
+      i.advisor
+    ].map(cell => `"${cell}"`).join(",");
+    csv += row + "\n";
+  });
+
+  const blob = new Blob([csv], {type: "text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "فایل‌های_املاک.csv";
+  a.click();
+}
+
+/* PWA */
+if("serviceWorker" in navigator){
+  const swCode=`
+    self.addEventListener("install",e=>{
+      e.waitUntil(
+        caches.open("estate-cache").then(cache=>{
+          return cache.addAll(["./"]);
+        })
+      );
+    });
+    self.addEventListener("fetch",e=>{
+      e.respondWith(
+        caches.match(e.request).then(res=>res||fetch(e.request))
+      );
+    });
+  `;
+  const blob=new Blob([swCode],{type:"text/javascript"});
+  navigator.serviceWorker.register(URL.createObjectURL(blob));
+}
+
+render(getData());
+
+</script>
+
+</body>
+</html>
